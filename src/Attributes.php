@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Leeto\FastAttributes;
 
+use Psr\SimpleCache\CacheInterface;
+use Psr\SimpleCache\InvalidArgumentException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionClassConstant;
@@ -13,36 +15,43 @@ use ReflectionParameter;
 use ReflectionProperty;
 
 /**
- *  TODO
- *  [] Get all attributes from (constants, properties, methods, parameters)
- *  [] Cache
  * @template-covariant AttributeClass
  *
  */
 final class Attributes
 {
-    protected ?string $method = null;
+    private bool $withClass = false;
 
-    protected ?string $property = null;
+    private ?string $method = null;
 
-    protected ?string $constant = null;
+    private ?string $property = null;
 
-    protected ?string $parameter = null;
+    private ?string $constant = null;
 
-    protected bool $withMethod = false;
+    private ?string $parameter = null;
 
-    protected bool $withClass = false;
+    private bool $withMethod = false;
 
     /** @var array<int, AttributeClass|ReflectionAttribute<object>> */
-    protected array $attributes = [];
+    private array $attributes = [];
+
+    private bool $constants = false;
+
+    private bool $methods = false;
+
+    private bool $properties = false;
+
+    private bool $parameters = false;
+
+    private ?CacheInterface $cache = null;
 
     /**
      * @param  object|class-string  $class
      * @param  ?class-string  $attribute
      */
     public function __construct(
-        protected object|string $class,
-        protected ?string $attribute = null,
+        private object|string $class,
+        private ?string $attribute = null,
     ) {
     }
 
@@ -55,6 +64,16 @@ final class Attributes
     public static function for(object|string $class, ?string $attribute = null): self
     {
         return new self($class, $attribute);
+    }
+
+    /**
+     * @return self<AttributeClass>
+     */
+    public function cached(?CacheInterface $cache = null): self
+    {
+        $this->cache = $cache ?? new MemoryCache();
+
+        return $this;
     }
 
     /**
@@ -90,6 +109,56 @@ final class Attributes
     /**
      * @return self<AttributeClass>
      */
+    public function class(): self
+    {
+        $this->withClass = true;
+
+        return $this;
+    }
+
+    /**
+     * @return self<AttributeClass>
+     */
+    public function constants(): self
+    {
+        $this->constants = true;
+
+        return $this;
+    }
+
+    /**
+     * @return self<AttributeClass>
+     */
+    public function properties(): self
+    {
+        $this->properties = true;
+
+        return $this;
+    }
+
+    /**
+     * @return self<AttributeClass>
+     */
+    public function methods(): self
+    {
+        $this->methods = true;
+
+        return $this;
+    }
+
+    /**
+     * @return self<AttributeClass>
+     */
+    public function parameters(): self
+    {
+        $this->parameters = true;
+
+        return $this;
+    }
+
+    /**
+     * @return self<AttributeClass>
+     */
     public function parameter(string $value, bool $withMethod = false): self
     {
         $this->withMethod = $withMethod;
@@ -109,19 +178,17 @@ final class Attributes
     }
 
     /**
-     * @return list<AttributeClass>|list<ReflectionAttribute<object>>
-     * @throws ReflectionException
+     * @return list<ReflectionAttribute<object>>|list<AttributeClass>
+     * @throws ReflectionException|InvalidArgumentException
      */
-    public function get(bool $withClass = false): array
+    public function get(): array
     {
-        $this->withClass = $withClass;
-
         return $this->retrieve();
     }
 
     /**
      * @return AttributeClass|ReflectionAttribute|mixed|null
-     * @throws ReflectionException
+     * @throws ReflectionException|InvalidArgumentException
      */
     public function first(?string $property = null): mixed
     {
@@ -136,91 +203,88 @@ final class Attributes
 
     /**
      * @return list<AttributeClass>|list<ReflectionAttribute<object>>
-     * @throws ReflectionException
+     * @throws ReflectionException|InvalidArgumentException
      */
     private function retrieve(): array
     {
+        $key = is_object($this->class)
+            ? $this->class::class
+            : $this->class;
+
+        if($this->cache?->has($key)) {
+            /**
+             * @var list<AttributeClass>|list<ReflectionAttribute<object>> $cached
+             */
+            $cached = $this->cache->get($key);
+
+            return $cached;
+        }
+
         $reflection = new ReflectionClass($this->class);
-        $nothingSpecified = true;
 
-        if (! is_null($this->property)) {
-            $nothingSpecified = false;
+        $this->fillAttributes($reflection, $this->withClass);
 
-            $this->attributes = [
-                ...$this->attributes,
-                ...$this->retrieveAttributes(
-                    $reflection->getProperty($this->property)
-                )
-            ];
+        if ($this->properties || ! is_null($this->property)) {
+            foreach ($reflection->getProperties() as $property) {
+                $this->fillAttributes(
+                    $property,
+                    is_null($this->property) || $this->property === $property->getName()
+                );
+            }
         }
 
-        if (! is_null($this->constant)) {
-            $nothingSpecified = false;
-
-            $this->attributes = [
-                ...$this->attributes,
-                ...$this->retrieveAttributes(
-                    $reflection->getReflectionConstant($this->constant)
-                )
-            ];
+        if ($this->constants || ! is_null($this->constant)) {
+            foreach ($reflection->getReflectionConstants() as $constant) {
+                $this->fillAttributes(
+                    $constant,
+                    is_null($this->constant) || $this->constant === $constant->getName()
+                );
+            }
         }
 
-        if (! is_null($this->method)) {
-            $nothingSpecified = false;
-
-            $this->attributes = [
-                ...$this->attributes,
-                ...$this->retrieveMethodOrParameterAttributes($reflection)
-            ];
+        if ($this->methods || ! is_null($this->method)) {
+            foreach ($reflection->getMethods() as $method) {
+                $this->retrieveMethodOrParametersAttributes($method);
+            }
         }
 
-        if ($this->withClass || $nothingSpecified) {
-            $this->attributes = [
-                ...$this->attributes,
-                ...$this->retrieveAttributes($reflection)
-            ];
-        }
+        $this->cache?->set($key, $this->attributes);
 
         return $this->attributes;
     }
 
-    /**
-     * @param  ReflectionClass<object>  $reflection
-     * @return list<AttributeClass>|list<ReflectionAttribute<object>>
-     * @throws ReflectionException
-     */
-    public function retrieveMethodOrParameterAttributes(ReflectionClass $reflection): array
+    private function retrieveMethodOrParametersAttributes(ReflectionMethod $method): void
     {
-        $attributes = [];
-
-        if (is_null($this->method)) {
-            return $attributes;
-        }
-
-        $reflectionMethod = $reflection->getMethod($this->method);
-
-        if (! is_null($this->parameter)) {
-            /** @var list<ReflectionParameter> $parameters */
-            $parameters = array_filter(
-                $reflectionMethod->getParameters(),
-                fn (ReflectionParameter $param) => $param->getName() === $this->parameter
+        if (is_null($this->parameter) || $this->withMethod) {
+            $this->fillAttributes(
+                $method,
+                is_null($this->method) || $this->method === $method->getName()
             );
-
-            $attributes = isset($parameters[0]) ? $this->retrieveAttributes(
-                $parameters[0]
-            ) : [];
         }
 
-        if(!is_null($this->parameter) && !$this->withMethod) {
-            return $attributes;
+        if ($this->parameters || ! is_null($this->parameter)) {
+            foreach ($method->getParameters() as $parameter) {
+                $this->fillAttributes(
+                    $parameter,
+                    is_null($this->parameter) || $this->parameter === $parameter->getName()
+                );
+            }
         }
+    }
 
-        return [
-            ...$attributes,
-            ...$this->retrieveAttributes(
-                $reflectionMethod
-            ),
-        ];
+    /**
+     * @param  ReflectionClass<object>|ReflectionProperty|ReflectionClassConstant|false|ReflectionMethod|ReflectionParameter  $reflection
+     * @param  bool  $condition
+     * @return void
+     */
+    private function fillAttributes(mixed $reflection, bool $condition = true): void
+    {
+        if ($condition) {
+            $this->attributes = [
+                ...$this->attributes,
+                ...$this->retrieveAttributes($reflection),
+            ];
+        }
     }
 
     /**

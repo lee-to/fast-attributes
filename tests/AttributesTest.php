@@ -14,6 +14,7 @@ use Leeto\FastAttributes\Tests\Fixtures\Attributes\PropertyAttribute;
 use Leeto\FastAttributes\Tests\Fixtures\ClassWithAttributes;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\SimpleCache\InvalidArgumentException;
 use ReflectionAttribute;
 use ReflectionException;
 
@@ -21,13 +22,16 @@ final class AttributesTest extends TestCase
 {
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     #[Test]
     public function classAttributes(): void
     {
         // All class attributes
 
-        $attributes = Attributes::for(ClassWithAttributes::class)->get();
+        $attributes = Attributes::for(ClassWithAttributes::class)
+            ->class()
+            ->get();
 
         $this->assertCount(1, $attributes);
         $this->assertInstanceOf(ClassAttribute::class, $attributes[0]->newInstance());
@@ -36,6 +40,7 @@ final class AttributesTest extends TestCase
 
         $attributes = Attributes::for(ClassWithAttributes::class)
             ->attribute(ClassAttribute::class)
+            ->class()
             ->get();
 
         $this->assertCount(1, $attributes);
@@ -45,6 +50,7 @@ final class AttributesTest extends TestCase
 
         $attribute = Attributes::for(ClassWithAttributes::class)
             ->attribute(ClassAttribute::class)
+            ->class()
             ->first();
 
         $this->assertInstanceOf(ClassAttribute::class, $attribute);
@@ -53,6 +59,7 @@ final class AttributesTest extends TestCase
 
         $value = Attributes::for(ClassWithAttributes::class)
             ->attribute(ClassAttribute::class)
+            ->class()
             ->first('variable');
 
         $this->assertEquals('some value', $value);
@@ -74,6 +81,7 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     #[Test]
     public function propertyAttributes(): void
@@ -125,6 +133,7 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     #[Test]
     public function constantAttributes(): void
@@ -176,6 +185,7 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     #[Test]
     public function methodAttributes(): void
@@ -227,6 +237,7 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     #[Test]
     public function parameterAttributes(): void
@@ -283,9 +294,10 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     #[Test]
-    public function allAttributes(): void
+    public function simpleAttributes(): void
     {
         $attributes = Attributes::for(ClassWithAttributes::class)
             ->property('variable')
@@ -301,17 +313,110 @@ final class AttributesTest extends TestCase
             ->constant('VARIABLE')
             ->method('someMethod')
             ->parameter('variable')
-            ->get(withClass: true);
+            ->class()
+            ->get();
 
         $this->assertCount(4, $attributes);
 
         $attributes = Attributes::for(ClassWithAttributes::class)
+            ->class()
             ->property('variable')
             ->constant('VARIABLE')
             ->method('someMethod')
             ->parameter('variable', withMethod: true)
-            ->get(withClass: true);
+            ->get();
 
         $this->assertCount(5, $attributes);
+    }
+
+    /**
+     * @throws ReflectionException
+     * @throws InvalidArgumentException
+     */
+    #[Test]
+    public function arrayOfConstantsAttributes(): void
+    {
+        $attributes = Attributes::for(ClassWithAttributes::class)
+            ->constants()
+            ->get();
+
+        $attribute = Attributes::for(ClassWithAttributes::class)
+            ->constants()
+            ->first();
+
+        $this->assertCount(1, $attributes);
+        $this->assertInstanceOf(ConstantAttribute::class, $attributes[0]->newInstance());
+        $this->assertInstanceOf(ConstantAttribute::class, $attribute);
+    }
+
+    /**
+     * @throws ReflectionException
+     * @throws InvalidArgumentException
+     */
+    #[Test]
+    public function arrayOfPropertiesAttributes(): void
+    {
+        $attributes = Attributes::for(ClassWithAttributes::class)
+            ->properties()
+            ->get();
+
+        $attribute = Attributes::for(ClassWithAttributes::class)
+            ->properties()
+            ->first();
+
+        $this->assertCount(1, $attributes);
+        $this->assertInstanceOf(PropertyAttribute::class, $attributes[0]->newInstance());
+        $this->assertInstanceOf(PropertyAttribute::class, $attribute);
+    }
+
+    /**
+     * @throws ReflectionException
+     * @throws InvalidArgumentException
+     */
+    #[Test]
+    public function arrayOfMethodsAttributes(): void
+    {
+        $attributes = Attributes::for(ClassWithAttributes::class)
+            ->methods()
+            ->get();
+
+        $attribute = Attributes::for(ClassWithAttributes::class)
+            ->methods()
+            ->first();
+
+        $this->assertCount(1, $attributes);
+        $this->assertInstanceOf(MethodAttribute::class, $attributes[0]->newInstance());
+        $this->assertInstanceOf(MethodAttribute::class, $attribute);
+    }
+
+    /**
+     * @throws ReflectionException
+     * @throws InvalidArgumentException
+     */
+    #[Test]
+    public function arrayOfParametersAttributes(): void
+    {
+        $attributes = Attributes::for(ClassWithAttributes::class)
+            ->methods()
+            ->parameters()
+            ->get();
+
+        $this->assertCount(2, $attributes);
+    }
+
+    /**
+     * @throws ReflectionException
+     * @throws InvalidArgumentException
+     */
+    #[Test]
+    public function cachedAttributes(): void
+    {
+        $attributes = Attributes::for(ClassWithAttributes::class)
+            ->cached()
+            ->methods()
+            ->parameters()
+            ->get();
+
+        $this->assertCount(2, $attributes);
     }
 }
