@@ -14,15 +14,12 @@ use Leeto\FastAttributes\Tests\Fixtures\Attributes\PropertyAttribute;
 use Leeto\FastAttributes\Tests\Fixtures\ClassWithAttributes;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
-use Psr\SimpleCache\InvalidArgumentException;
-use ReflectionAttribute;
 use ReflectionException;
 
 final class AttributesTest extends TestCase
 {
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function classAttributes(): void
@@ -81,7 +78,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function propertyAttributes(): void
@@ -133,7 +129,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function constantAttributes(): void
@@ -185,7 +180,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function methodAttributes(): void
@@ -237,7 +231,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function parameterAttributes(): void
@@ -294,7 +287,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function simpleAttributes(): void
@@ -331,7 +323,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function arrayOfConstantsAttributes(): void
@@ -351,7 +342,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function arrayOfPropertiesAttributes(): void
@@ -371,7 +361,6 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function arrayOfMethodsAttributes(): void
@@ -391,28 +380,11 @@ final class AttributesTest extends TestCase
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     #[Test]
     public function arrayOfParametersAttributes(): void
     {
         $attributes = Attributes::for(ClassWithAttributes::class)
-            ->methods()
-            ->parameters()
-            ->get();
-
-        $this->assertCount(2, $attributes);
-    }
-
-    /**
-     * @throws ReflectionException
-     * @throws InvalidArgumentException
-     */
-    #[Test]
-    public function cachedAttributes(): void
-    {
-        $attributes = Attributes::for(ClassWithAttributes::class)
-            ->cached()
             ->methods()
             ->parameters()
             ->get();

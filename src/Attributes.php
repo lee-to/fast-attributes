@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Leeto\FastAttributes;
 
-use Psr\SimpleCache\CacheInterface;
-use Psr\SimpleCache\InvalidArgumentException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionClassConstant;
@@ -43,8 +41,6 @@ final class Attributes
 
     private bool $parameters = false;
 
-    private ?CacheInterface $cache = null;
-
     /**
      * @param  object|class-string  $class
      * @param  ?class-string  $attribute
@@ -64,16 +60,6 @@ final class Attributes
     public static function for(object|string $class, ?string $attribute = null): self
     {
         return new self($class, $attribute);
-    }
-
-    /**
-     * @return self<AttributeClass>
-     */
-    public function cached(?CacheInterface $cache = null): self
-    {
-        $this->cache = $cache ?? new MemoryCache();
-
-        return $this;
     }
 
     /**
@@ -179,7 +165,7 @@ final class Attributes
 
     /**
      * @return list<ReflectionAttribute<object>>|list<AttributeClass>
-     * @throws ReflectionException|InvalidArgumentException
+     * @throws ReflectionException
      */
     public function get(): array
     {
@@ -188,7 +174,7 @@ final class Attributes
 
     /**
      * @return AttributeClass|ReflectionAttribute|mixed|null
-     * @throws ReflectionException|InvalidArgumentException
+     * @throws ReflectionException
      */
     public function first(?string $property = null): mixed
     {
@@ -203,22 +189,13 @@ final class Attributes
 
     /**
      * @return list<AttributeClass>|list<ReflectionAttribute<object>>
-     * @throws ReflectionException|InvalidArgumentException
+     * @throws ReflectionException
      */
     private function retrieve(): array
     {
         $key = is_object($this->class)
             ? $this->class::class
             : $this->class;
-
-        if($this->cache?->has($key)) {
-            /**
-             * @var list<AttributeClass>|list<ReflectionAttribute<object>> $cached
-             */
-            $cached = $this->cache->get($key);
-
-            return $cached;
-        }
 
         $reflection = new ReflectionClass($this->class);
 
@@ -247,8 +224,6 @@ final class Attributes
                 $this->retrieveMethodOrParametersAttributes($method);
             }
         }
-
-        $this->cache?->set($key, $this->attributes);
 
         return $this->attributes;
     }
