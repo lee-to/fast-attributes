@@ -13,7 +13,7 @@ use ReflectionParameter;
 use ReflectionProperty;
 
 /**
- * @template-covariant AttributeClass
+ * @template T
  *
  */
 final class Attributes
@@ -30,7 +30,7 @@ final class Attributes
 
     private bool $withMethod = false;
 
-    /** @var array<int, AttributeClass|ReflectionAttribute<object>> */
+    /** @var array<int, T|ReflectionAttribute<object>> */
     private array $attributes = [];
 
     private bool $constants = false;
@@ -43,7 +43,7 @@ final class Attributes
 
     /**
      * @param  object|class-string  $class
-     * @param  ?class-string  $attribute
+     * @param  ?class-string<T>  $attribute
      */
     public function __construct(
         private object|string $class,
@@ -52,7 +52,6 @@ final class Attributes
     }
 
     /**
-     * @template T
      * @param  object|class-string  $class
      * @param  ?class-string<T>  $attribute
      * @return self<T>
@@ -63,7 +62,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function method(string $value): self
     {
@@ -73,7 +72,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function property(string $value): self
     {
@@ -83,7 +82,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function constant(string $value): self
     {
@@ -93,7 +92,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function class(): self
     {
@@ -103,7 +102,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function constants(): self
     {
@@ -113,7 +112,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function properties(): self
     {
@@ -123,7 +122,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function methods(): self
     {
@@ -133,7 +132,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function parameters(): self
     {
@@ -143,7 +142,7 @@ final class Attributes
     }
 
     /**
-     * @return self<AttributeClass>
+     * @return self<T>
      */
     public function parameter(string $value, bool $withMethod = false): self
     {
@@ -154,7 +153,6 @@ final class Attributes
     }
 
     /**
-     * @template T
      * @param  class-string<T>  $attribute
      * @return self<T>
      */
@@ -164,7 +162,7 @@ final class Attributes
     }
 
     /**
-     * @return list<ReflectionAttribute<object>>|list<AttributeClass>
+     * @return array<array-key, T|ReflectionAttribute<object>>
      * @throws ReflectionException
      */
     public function get(): array
@@ -173,7 +171,9 @@ final class Attributes
     }
 
     /**
-     * @return AttributeClass|ReflectionAttribute|mixed|null
+     * @param  string|null  $property
+     *
+     * @return ($property is null ? T|null : mixed)
      * @throws ReflectionException
      */
     public function first(?string $property = null): mixed
@@ -188,20 +188,18 @@ final class Attributes
     }
 
     /**
-     * @return list<AttributeClass>|list<ReflectionAttribute<object>>
+     * @return array<array-key, T|ReflectionAttribute<object>>
      * @throws ReflectionException
      */
     private function retrieve(): array
     {
-        $key = is_object($this->class)
-            ? $this->class::class
-            : $this->class;
-
         $reflection = new ReflectionClass($this->class);
 
+        $filled = $this->withClass;
         $this->fillAttributes($reflection, $this->withClass);
 
         if ($this->properties || ! is_null($this->property)) {
+            $filled = true;
             foreach ($reflection->getProperties() as $property) {
                 $this->fillAttributes(
                     $property,
@@ -211,6 +209,7 @@ final class Attributes
         }
 
         if ($this->constants || ! is_null($this->constant)) {
+            $filled = true;
             foreach ($reflection->getReflectionConstants() as $constant) {
                 $this->fillAttributes(
                     $constant,
@@ -220,9 +219,14 @@ final class Attributes
         }
 
         if ($this->methods || ! is_null($this->method)) {
+            $filled = true;
             foreach ($reflection->getMethods() as $method) {
                 $this->retrieveMethodOrParametersAttributes($method);
             }
+        }
+
+        if($filled === false) {
+            $this->fillAttributes($reflection);
         }
 
         return $this->attributes;
@@ -264,7 +268,7 @@ final class Attributes
 
     /**
      * @param  ReflectionClass<object>|ReflectionProperty|ReflectionClassConstant|false|ReflectionMethod|ReflectionParameter  $reflection
-     * @return list<AttributeClass>|list<ReflectionAttribute<object>>
+     * @return list<ReflectionAttribute<object>>
      */
     private function retrieveAttributes(mixed $reflection): array
     {
@@ -279,12 +283,16 @@ final class Attributes
     }
 
     /**
-     * @param  AttributeClass|ReflectionAttribute<object>  $attribute
+     * @param  ReflectionAttribute<object>|T  $attribute
      * @param  string|null  $property
      * @return mixed
      */
     private function retrieveAttribute(mixed $attribute, ?string $property = null): mixed
     {
+        if(!$attribute instanceof ReflectionAttribute) {
+            return null;
+        }
+
         return is_null($property)
             ? $attribute->newInstance()
             : $attribute->newInstance()->{$property};

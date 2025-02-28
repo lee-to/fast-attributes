@@ -33,6 +33,13 @@ final class AttributesTest extends TestCase
         $this->assertCount(1, $attributes);
         $this->assertInstanceOf(ClassAttribute::class, $attributes[0]->newInstance());
 
+        // All class attributes without scope
+
+        $attributes = Attributes::for(ClassWithAttributes::class)->get();
+
+        $this->assertCount(1, $attributes);
+        $this->assertInstanceOf(ClassAttribute::class, $attributes[0]->newInstance());
+
         // Concrete class attribute
 
         $attributes = Attributes::for(ClassWithAttributes::class)
